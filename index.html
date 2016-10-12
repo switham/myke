@@ -1,0 +1,526 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+<!--
+
+
+
+
+
+
+
+                       Steve--
+
+
+
+                       Don't edit this file.
+
+
+
+                       You know that ain't right.
+
+
+
+                       --Steve
+
+
+
+
+
+
+
+-->
+<head>
+<title>myke: two percent of make</title>
+
+<style type="text/css">
+.firstletter
+{
+float:left;
+width:1.8em;
+font-size:200%;
+line-height:100%;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<table width="100%" border="0">
+  <tr>
+    <td width="129" align="center">
+       <img
+        src="http://www.mac-guyver.com/switham/2010/03/Myke/myke2_thumb.png" 
+        width="109" border="0">
+
+      </a></td>
+    <td valign="top"> 
+<p>
+      <font size="+2">
+<b><code>myke</code>: the 2% of <code>make</code>
+      that does 50% of what I need</b>
+     (in 374 lines of Python)</font>
+      
+<font size="-1"><p>version 0.1</font>
+   </td>
+  </tr>
+</table>
+
+<blockquote><font size="-1">
+<i>It began with an elaborate idea of a dependency analyzer, boiled down to something much simpler, and turned into Make that weekend.</i><br>
+--<a href="http://www.faqs.org/docs/artu/ch15s04.html">Stuart Feldman</a>
+</font></blockquote>
+
+<p>
+<span class="firstletter">See,</span>  my laptop currently has only one small functioning partition,
+so I can't install the whole developer tools suite onto it.
+I was working on some Java code on the laptop.
+The project includes a <code>Makefile</code>, but I had to
+compile by hand on the laptop.
+<p>
+
+I noticed the basic Mac OS X install includes <code>gcc</code>,
+<code>javac</code>, <code>jar</code>, and <code>java</code>,
+but not <code>make</code> (nor <code>ant</code> nor <code>SCons</code>).
+That's when it occurred to me:
+<blockquote>
+"Gee, I don't do anything really...<i>complicated</i> with <code>make</code>..."
+</blockquote>
+
+So I spent nine hours on Saturday writing the gist of
+<code>make</code> in Python.
+At that point <code>myke</code> did all the basic 
+stuff I use <code>make</code> for in my own work.
+Sunday I spent another nine hours futzing.
+The flip side of diminishing returns is that the first 2% of a project
+gives you an inflated opinion of yourself.
+Yet another make-maker.
+
+<p>
+I've since found that although <code>gnumake</code> is compiled from about 70 times as many
+source lines and bytes as <code>myke</code>, its compiled binary is only
+about 300K bytes, and it does run when copied to my laptop
+(no missing or incompatible libraries).  So <code>myke</code> has been a
+diversion from what I was doing on Friday.
+
+<p>
+I modeled <code>myke</code> on <code>make</code>'s behavior,
+rather than documentation or any opinions of my own.
+It was nice having so few design questions or decisions to make.
+One mystery is the difference between "nothing to be done for
+'all'," and "target 'all' is up-to-date."  The latter seems to happen when
+there were rules to run, but <code>make</code> didn't echo any of them to the
+terminal.  You can trigger this by creating a rule with a line
+beginning with a tab but otherwise blank.  <code>myke</code> doesn't
+go for that.
+
+<p>
+I liked working on a program called "<code>myke</code>."  For instance there are
+"raise MykeException" statements, and comments like "<code>myke</code> counts on it."
+
+<p>
+<table width="100%" border="0">
+<tr>
+<td>
+<code>myke</code> is crazy like a fox, but not quite the character.<br>
+<code>myke</code> uses McGuffin-based parsing.<br>
+<code>myke</code> was inside of <code>make</code>,
+looking for a way out.<br>
+<code>myke</code> searches for significant whitespace.<br>
+</td>
+   <td width="129" align="center">
+       <img
+        src="http://www.mac-guyver.com/switham/2010/03/Myke/myke2_thumb.png" 
+        width="109" border="0">
+     </td>
+   </tr>
+</table>
+
+
+<p>
+Here's the code <a href="myke">to download</a> and "inline" (take two they're small):
+<hr>
+<pre><font size="-1">
+#!/usr/bin/env python
+"""\ 
+    myke -- The 2% of make that does 50% of what I need.
+            (The other 50% being to build other people's code.)
+    This file:
+          375 lines,  11K bytes.
+    The 33 C files in Gnu make 3.00's source:
+       30,000 lines, 790K bytes
+    Steve Witham, "ess" "double-you" at remove-this tiac dot net
+    http://www.tiac.net/~sw/2010/03/Myke
+"""
+
+progname = "myke" 
+Makefile = "Makefile"
+
+def usage():
+    print >>stderr, '''\
+Usage: %s [-s|--silent] [-n|--dry-run] [target]
+       Makefile is always "%s".''' % ( progname, Makefile )
+    exit( 1 )
+
+
+from sys import argv, stdout, stderr, exc_info, exit
+from os import getenv, stat, stat_float_times, system
+
+be_silent = False
+dry_run = False
+whitespace = [ ' ', '\t', '\\\n', '\n' ]
+name_end = whitespace + [ c for c in "$(){}=:" ]
+# no whitespace in target or variable names
+
+
+def myke( target=None ):
+    dependencies = {}  # { target: list_of_subtargets... }
+    scripts = {}       # { target: list_of_commands... }
+
+    target = read_Makefile( dependencies, scripts, target )
+    times = {}
+    stat_float_times()  # Tells stat() to return floats if it can.
+    check_dependencies( target, dependencies, scripts, times )
+    if times[ target ] == "MAKE":
+        build( target, dependencies, scripts, times )
+        if dry_run and be_silent:
+            return 1  # needs to be built
+
+    else:
+        warning( "Nothing to be done for "+repr(target)+"." )
+
+    return 0
+
+
+
+def read_Makefile( dependencies, scripts, target=None ):
+    current_command_target = None
+    vardict = VarDict()
+
+    try:
+        M = open( Makefile, 'r' )
+        line = ""
+        lineno = 1
+        while True:
+            lineno += line.count( '\n' )
+            line = read_continuation_lines( M )
+            if line == "":
+                break
+
+            line = substitute_vars( line, lineno, vardict )
+            p = skip_whitespace( line, 0 )
+            if p == len( line )  or  line[p] == '#':  # blank line or comment:
+                continue
+
+            if line[0] == '\t':                       # command line:
+                if current_command_target:
+                    scripts[ current_command_target ].append( line[ 1: ] )
+                    # (Newlines are removed after printing before running.)
+                    continue
+
+                else:
+                    parse_err( line, lineno, 1, 
+                              "Command isn't directly under a target.  Stop." )
+
+            token = get_token( line, 0, name_end )
+            p += len( token )
+            if token and line[ p ] == '=':            # setting a variable:
+                p += len( '=' )
+                vardict[ token ] = " ".join( split_at_whitespace( line[p:] ) )
+                current_command_target = None
+                continue
+
+            elif token and line[p] == ':':            # target: dependencies
+                p += len( ':' )
+                if token in dependencies:
+                    parse_err( line, lineno, 0,
+                              "Extra rule for target "+repr(token)+".  Stop." )
+
+                dependencies[ token ] = split_at_whitespace( line[ p : ] )
+                current_command_target = token
+                if target == None:
+                    target = token  # first target in the file
+                scripts[ token ] = []
+                continue
+
+            else:
+                parse_err( line, lineno, 0,
+                          "Can't parse.  Stop." )
+
+    finally:
+        M.close()
+    return target
+
+
+def read_continuation_lines( f ):
+    """ Read lines until EOF or line not ending in backslash.
+        single string returned including all backslashes and newlines.
+    """
+    whole_line = ""
+    while True:
+        line = f.readline()
+        if line == "":
+            return whole_line
+
+        if line[ -1 ] != '\n':  # Last line with no newline:
+            line += '\n'        # myke counts on it.
+        whole_line += line
+        if len(line) < 2  or  line[ -2 ] != '\\':
+            return whole_line
+
+
+def check_dependencies( target, dependencies, scripts, times, parent=None ):
+    if target in times:
+        return
+
+    try:
+        my_time = stat( target ).st_mtime
+        if not target in dependencies: # i.e., no rule for target,
+            times[ target ] = my_time
+            return
+
+    except OSError:  # Assuming this means the file or directory doesn't exist.
+        my_time = None
+        if not target in dependencies:
+            message = "*** No rule to make target " + repr(target)
+            if parent:
+                message += ", needed by " + repr(parent)
+            runtime_err( message + ".  Stop.", 1 )
+
+    times[ target ] = "CHECKING"
+    latest_dep = None
+    for dep in dependencies[ target ]:
+        if times.get( dep ) == "CHECKING":
+            warning( "Circular " +dep+ " <- " +dep+ " dependency dropped." )
+            continue
+
+        check_dependencies( dep, dependencies, scripts, times, parent=target )
+        latest_dep = latest_of( latest_dep, times[ dep ] )
+    if my_time == None:
+        if scripts[ target ]:
+            times[ target ] = "MAKE"
+        else:
+            times[ target ] = latest_dep
+    else:
+        if my_time == latest_of( my_time, latest_dep ):
+            times[ target ] = my_time
+        else:
+            times[ target ] = "MAKE"
+
+
+def latest_of( a, b ):
+    if a == "MAKE"  or  b == "MAKE":
+        return "MAKE"
+
+    return max( a, b )
+
+
+
+def build( target, dependencies, scripts, times ):
+    if times[ target ] != "MAKE":
+        return
+
+    times[ target ] = "MAKING"
+
+    for dep in dependencies[ target ]:
+        build( dep, dependencies, scripts, times )
+
+    for command in scripts[ target ]:
+        if command[0] == '@':       # one-line silent treatment
+            command = command[1:]   # (remove the '@')
+        elif not be_silent:
+            print command.rstrip()
+        if not dry_run:
+            whites = [ '\t', '\\\n', '\n' ]
+            command = " ".join( split_at_whitespace( command, whites ) )
+            retcode = system( command )
+            if retcode != 0:
+                err, sig = retcode / 256, retcode % 256
+                runtime_err( "*** [" + target + "] Error " + str(err), err )
+
+    times[ target ] = "MADE"
+
+
+    
+def substitute_vars( line, lineno, vardict ):
+    """ Myke doesn't do recursive substitution. """
+    #  $$  ${blah}  $(blah)  or  $v
+    #  where v is any char not in the "name_end" set.
+    parens = { "(": ")", "{": "}" }
+    p = 0
+    result = ""
+    while p < len( line ):
+        q = line[p:].find( '$' )
+        if q == -1:
+            break
+
+        result += line[ p : p + q ]
+        p += ( q + len( '$' ) )
+        if line[p] == '$':  # $$ stands for $
+            p += len("$")
+            result += "$"
+            continue
+
+        elif line[p] in parens:
+            closer = parens[ line[p] ]
+            p += len( line[p] )
+            varname = get_token( line, p, name_end ) 
+            p += len( varname )   # p points at mcguffin.
+            if varname == ""  or  line[p] != closer:
+                parse_err( line, lineno, p, "Bad long variable reference." )
+
+            p += len(closer)
+        elif mcguffin_len( line[p:], name_end ) == None: # one legal name char
+            varname = line[p]
+            p += len(varname)
+        else:
+            parse_err( line, lineno, p, "Bad variable reference." )
+
+        result += vardict[ varname ]
+
+    return result + line[ p: ]
+
+
+
+class VarDict:
+    """ Variable dictionary just for myke.  if d = VarDict() then
+        d[key] = value    sets myke variable;
+        d[key]            gets from myke variable, else os.environ, else "";
+        print d           prints the internal dictionary only.
+    """
+
+    def __init__( self ):
+        self.d = {}
+
+
+    def __setitem__( self, varname, value ):
+        self.d[ varname ] = value
+
+
+    def __getitem__( self, varname, default="" ):
+        if varname in self.d:
+            return self.d[ varname ]
+        else:
+            return getenv( varname, default )
+
+
+    def __repr__( self ):
+        return repr( self.d )
+
+
+
+class MykeException( Exception ):
+    pass
+
+
+def parse_err( line, lineno, p, complaint ):
+    """ Complain about line # lineno, without echoing the line,
+        but count newlines before position p in line number.
+        p should point at or before newline of the offending line.
+    """
+    lineno += line[ 0 : p ].count( '\n' )
+    message = Makefile + ":" + str(lineno)+","+str(p)+": *** " + complaint
+    raise MykeException( message, 1 )
+
+
+def warning( complaint ):
+    if not be_silent:
+        print >>stderr, progname + ":", complaint
+
+
+def runtime_err( complaint, errcode ):
+    raise MykeException( progname + ": " + complaint, errcode )
+
+
+
+def skip_whitespace( line, p, mcguffins=whitespace ):
+    while True:
+        q = mcguffin_len( line[ p: ], mcguffins )
+        if q == None:
+            return p
+
+        p += q
+
+
+def split_at_whitespace( string, mcguffins=whitespace ):
+    result = []
+    p = 0
+    while p < len( string ):
+        chunk = get_token( string, p, mcguffins )
+        p += len( chunk )
+        p += mcguffin_len( string[ p : ], mcguffins )
+        if chunk != "":
+            result.append( chunk )
+    return result
+
+
+def get_token( line, p, mcguffins=whitespace ):
+    q = find_any( line[ p: ], mcguffins )
+    if q == -1:  # In this program it's strange not to find a newline...
+        return line[ p: ]
+
+    else:
+        return line[ p: p+q ]
+
+
+def mcguffin_len( string, mcguffins=whitespace ):
+    """ Length of the mcguffin found by find_any() or get_token().
+    """
+    for substr in mcguffins:
+        if string.startswith( substr ):
+            return len( substr )
+        
+    return None
+
+
+def find_any( string, mcguffins=whitespace ):
+    """ find first instance of...
+            any chars in mcguffins if it's a string
+            any strings in mcguffins if it's a list.
+    """
+    first = len( string )
+    for substr in mcguffins:
+        p = string.find( substr )
+        if p >= 0  and  p < first:
+            first = p
+    if first == len( string ):
+        return -1
+    else:
+        return first
+
+
+
+if __name__ == "__main__":
+   if len(argv) == 0:
+       args = []
+   else:
+       progname = argv[0]
+       args = argv[ 1: ]
+       while len(args) > 0 and args[0].startswith( '-' ):
+           if args[0] in [ "-s", "--silent" ]:
+               be_silent = True
+           elif args[0] in [ "-n", "--dry-run" ]:
+               dry_run = True
+           else:
+               usage()
+
+           args = args[ 1: ]
+   if len(args) > 1:
+       usage()
+
+   try:
+       retcode = myke( *args )
+   except MykeException:
+       msg, retcode = exc_info()[1].args
+       print >>stderr, msg
+   exit( retcode )
+</font></pre>
+<hr>
+
+<p>
+<font size="-1">
+--<a href="mailto:sw_at_tiac_remove-this_dot_net">Steve Witham</a><br>
+Up to my <a href="http://www.tiac.net/~sw">home page</a>.
+
+</body> </html>

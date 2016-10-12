@@ -1,0 +1,113 @@
+<head>
+<title>myke: two percent of make</title>
+
+<style type="text/css">
+.firstletter
+{
+float:left;
+width:1.8em;
+font-size:200%;
+line-height:100%;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<table width="100%" border="0">
+  <tr>
+    <td width="129" align="center">
+       <img
+        src="http://www.mac-guyver.com/switham/2010/03/Myke/myke2_thumb.png" 
+        width="109" border="0">
+
+      </a></td>
+    <td valign="top"> 
+<p>
+      <font size="+2">
+<b><code>myke</code>: the 2% of <code>make</code>
+      that does 50% of what I need</b>
+     (in 374 lines of Python)</font>
+      
+<font size="-1"><p>version 0.1</font>
+   </td>
+  </tr>
+</table>
+
+<blockquote><font size="-1">
+<i>It began with an elaborate idea of a dependency analyzer, boiled down to something much simpler, and turned into Make that weekend.</i><br>
+--<a href="http://www.faqs.org/docs/artu/ch15s04.html">Stuart Feldman</a>
+</font></blockquote>
+
+<p>
+<span class="firstletter">See,</span>  my laptop currently has only one small functioning partition,
+so I can't install the whole developer tools suite onto it.
+I was working on some Java code on the laptop.
+The project includes a <code>Makefile</code>, but I had to
+compile by hand on the laptop.
+<p>
+
+I noticed the basic Mac OS X install includes <code>gcc</code>,
+<code>javac</code>, <code>jar</code>, and <code>java</code>,
+but not <code>make</code> (nor <code>ant</code> nor <code>SCons</code>).
+That's when it occurred to me:
+<blockquote>
+"Gee, I don't do anything really...<i>complicated</i> with <code>make</code>..."
+</blockquote>
+
+So I spent nine hours on Saturday writing the gist of
+<code>make</code> in Python.
+At that point <code>myke</code> did all the basic 
+stuff I use <code>make</code> for in my own work.
+Sunday I spent another nine hours futzing.
+The flip side of diminishing returns is that the first 2% of a project
+gives you an inflated opinion of yourself.
+Yet another make-maker.
+
+<p>
+I've since found that although <code>gnumake</code> is compiled from about 70 times as many
+source lines and bytes as <code>myke</code>, its compiled binary is only
+about 300K bytes, and it does run when copied to my laptop
+(no missing or incompatible libraries).  So <code>myke</code> has been a
+diversion from what I was doing on Friday.
+
+<p>
+I modeled <code>myke</code> on <code>make</code>'s behavior,
+rather than documentation or any opinions of my own.
+It was nice having so few design questions or decisions to make.
+One mystery is the difference between "nothing to be done for
+'all'," and "target 'all' is up-to-date."  The latter seems to happen when
+there were rules to run, but <code>make</code> didn't echo any of them to the
+terminal.  You can trigger this by creating a rule with a line
+beginning with a tab but otherwise blank.  <code>myke</code> doesn't
+go for that.
+
+<p>
+I liked working on a program called "<code>myke</code>."  For instance there are
+"raise MykeException" statements, and comments like "<code>myke</code> counts on it."
+
+<p>
+<table width="100%" border="0">
+<tr>
+<td>
+<code>myke</code> is crazy like a fox, but not quite the character.<br>
+<code>myke</code> uses McGuffin-based parsing.<br>
+<code>myke</code> was inside of <code>make</code>,
+looking for a way out.<br>
+<code>myke</code> searches for significant whitespace.<br>
+</td>
+   <td width="129" align="center">
+       <img
+        src="http://www.mac-guyver.com/switham/2010/03/Myke/myke2_thumb.png" 
+        width="109" border="0">
+     </td>
+   </tr>
+</table>
+
+
+<p>
+Here's the code <a href="myke">to download</a> and "inline" (take two they're small):
+<hr>
+<pre><font size="-1">
