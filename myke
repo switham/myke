@@ -1,0 +1,237 @@
+#!/usr/bin/env python
+""" myke -- an 80% make-substitute
+"""
+
+def usage():
+    print >>stderr, '''\
+Usage: %s [-s|--silent] [-n|--just-print] [target]
+       Makefile is always "Makefile".''' % argv[0]
+    exit( 1 )
+
+
+from sys import argv, stdout, stderr, exit
+from os import getenv
+
+be_silent = False
+just_print = False
+Makefile = "Makefile"
+whitespace = " \t\\\n"
+
+
+def myke( target=None ):
+    global be_silent, just_print
+
+    vardict = VarDict()
+    dependencies = {}  # { targetfile: list_of_filenames... }
+    scripts = {}       # { targetfile: list_of_commands... }
+
+    target = read_Makefile( vardict, dependencies, scripts, target )
+    print "target =", repr(target)
+
+
+def read_Makefile( vardict, dependencies, scripts, target=None ):
+    current_command_target = None
+    tab = '\t'
+
+    with open( Makefile, 'r' ) as M:
+        line = ""
+        lineno = 1
+        while True:
+            lineno += line.count( '\n' )
+            line = read_continuation_lines( M )
+            if line == "":
+                break
+
+            line = substitute_vars( line, lineno, vardict )
+
+            # blank line or comment:
+            p = skipWhiteSpace( line, 0 )
+            if p == len( line )  or  line[p] == '#':
+                continue
+
+            # command line:
+            if line[0] == tab:
+                if current_command_target:
+                    scripts[ current_command_target ].append( line[ 1: ] )
+                    # (Newlines are removed after printing before running.)
+                    continue
+
+                else:
+                    complain( line, lineno, 1, 
+                              "Command isn't directly under a target." )
+
+            token, p = eat_token( line, 0, whitespace + ":=" )
+
+            # setting a variable:
+            if line[ p ] == '=':
+                p += len( '=' )
+                vardict[ token ] = " ".join( split_at_whitespace( line, p ) )
+                current_command_target = None
+                continue
+
+            # target: dependencies line:
+            elif line[p] == ':':
+                p += len( ':' )
+                current_command_target = token
+                if target == None:
+                    target = token
+                dependencies[ token ] = split_at_whitespace( line, p )
+                scripts[ token ] = []
+                continue
+
+            else:
+                complain( line, lineno, 0,
+                          "Don't know what to make of this line." )
+
+    return target
+
+            
+def read_continuation_lines( f ):
+    """ Read lines until EOF or line not ending in backslash.
+        single string returned including all backslashes and newlines.
+    """
+    whole_line = ""
+    while True:
+        line = f.readline()
+        if line == "":
+            return whole_line
+
+        if line[ -1 ] != '\n':  # Last line with no newline:
+            line += '\n'        # myke counts on it.
+        whole_line += line
+        if len(line) < 2  or  line[ -2 ] != '\\':
+            return whole_line
+
+    
+class VarDict:
+    """ Variable dictionary just for myke.  if d = VarDict() then
+        d[key] = value    sets myke variable;
+        d[key]            gets from myke variable, else os.environ, else "".
+    """
+
+    def __init__( self ):
+        self.d = {}
+
+
+    def __setitem__( self, varname, value ):
+        self.d[ varname ] = value
+
+
+    def __getitem__( self, varname ):
+        if varname in self.d:
+            return self.d[ varname ]
+        else:
+            return getenv( varname, "" )
+
+
+    def __repr__( self ):
+        return repr( self.d )
+
+
+def substitute_vars( line, lineno, vardict ):
+    #  $v  ${blah}  or  $(blah)
+    parens = { "(": ")", "{": "}" }
+    p = 0
+    result = ""
+    while p < len( line ):
+        q = line[p:].find( '$' )
+        if q == -1:
+            break
+
+        result += line[ p : p + q ]
+        p += ( q + len( '$' ) )
+        if line[p].isalpha()  or  line[p] == '_':
+            varname = line[p]
+            p += len(varname)
+        elif line[p] in parens:
+            closer = parens[ line[p] ]
+            varname, p = eat_token( line, p+1, whitespace + "$(){}=:" )
+            if varname == ""  or  line[p] != closer:
+                complain( line, lineno, p, "Bad long variable reference." )
+
+            p += len(closer)
+        else:
+            complain( line, lineno, p, "Bad variable reference." )
+
+        result += vardict[ varname ]
+
+    return result + line[ p: ]
+
+
+def skipWhiteSpace( line, p ):
+    while p < len(line) and line[p] in whitespace:
+        p += 1
+    return p
+            
+
+def split_at_whitespace( line, p, mcguffins=whitespace ):
+    result = []
+    while p < len(line):
+        token, p = eat_token( line, p, mcguffins )
+        p += 1  # skip the mcguffin
+        if token != "":
+            result.append( token )
+        while p < len(line) and line[p] in mcguffins:
+            p += 1
+    return result
+
+
+def eat_token( line, p, mcguffins=whitespace ):
+    q = find_any( line[ p: ], mcguffins )
+    if q == -1:
+        return line[ p: ], len(line)  # Should always find newline, though.
+
+    else:
+        return line[ p: p+q ], p+q
+
+
+def find_any( string, mcguffins ):
+    """ find first instance of...
+            any chars in mcguffins if it's a string
+            any strings in mcguffins if it's a list.
+    """
+    first = len( string )
+    for substr in mcguffins:
+        p = string[ :first ].find( substr )
+        if p >= 0:
+            first = p
+    if first == len( string ):
+        return -1
+    else:
+        return first
+
+
+class MykeException( Exception ):
+    pass
+
+
+def complain( line, lineno, p, complaint ):
+    """ Complain about line # lineno, without echoing the line,
+        but count newlines before position p in line number.
+        p should point at or before newline of the offending line.
+    """
+    lineno += line[ 0 : p ].count( '\n' )
+    message = Makefile + ":" + str(lineno) + ": " + line + complaint
+    raise MykeException( message )
+
+
+if __name__ == "__main__":
+   args = argv[ 1: ]
+   while len(args) > 0 and args[0].startswith( '-' ):
+       if args[0] in [ "-s", "--silent" ]:
+           be_silent = True
+       elif args[0] in [ "-n", "--just-print" ]:
+           just_print = True
+       else:
+           usage()
+
+       args = args[ 1: ]
+   if len(args) > 1:
+       usage()
+   try:
+       myke( *args )
+   except MykeException as e:
+       print >>stderr, e
+       exit( 1 )
+
+
