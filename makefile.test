@@ -1,0 +1,15 @@
+foo bar=garble
+
+files="my file" the\ file
+
+all:	$(foo bar) $(files)
+
+garble:	
+	echo hello$_there
+	echo $(foo bar)
+
+my file:     
+	echo i am my file
+
+the file:    
+	echo i am the file
