@@ -26,6 +26,9 @@ I modeled myke on make's behavior, rather than documentation or any opinions of 
 I liked working on a program called "myke." For instance there are "raise MykeException" statements, and comments like "myke counts on it."
 
 myke is crazy like a fox, but not quite the character.
+
 myke uses McGuffin-based parsing.
+
 myke was inside of make, looking for a way out.
+
 myke searches for significant whitespace.
