@@ -1,10 +1,10 @@
 # myke
 The basics of the Make utility in 373 lines of Python.
 
-I need to 
-  o  back-translate the index.html file into Github-flavored Markdown,
-  o  get grip working to translate the markdown back into html
-  o  put the BSD license all over it.
+I need to
+* back-translate the index.html file into Github-flavored Markdown,
+* get grip working to translate the markdown back into html
+* put the BSD license all over it.
   
 I'll just steal the text from the web page as a first step:
 
