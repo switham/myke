@@ -420,7 +420,7 @@ def parse_err( line, lineno, p, complaint ):
         p should point at or before newline of the offending line.
     """
     lineno += line[ 0 : p ].count( '\n' )
-    message = Makefile + ":" + str(lineno)+","+str(p)+": *** " + complaint
+    message = "%s:%d[%d]: *** %s" % ( Makefile, lineno, p, complaint )
     raise MykeException( message, 1 )
 
 
