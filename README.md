@@ -2,8 +2,7 @@
 The basics of the `make` utility in 373 lines of Python.
 
 I need to
-* back-translate the `index.html` file into Github-flavored Markdown,
-* get `grip` working to translate the markdown back into html
+* Integrate the `grip`-generated html into the way the page on my website is generated.
 * Tell `myke` to use regular expressions rather than McGiffins.
 * put the BSD license all over it.
   
