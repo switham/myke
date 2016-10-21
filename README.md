@@ -3,7 +3,7 @@ The basics of the `make` utility in 373 lines of Python.
 
 I need to
 * Integrate the `grip`-generated html into the way the page on my website is generated.
-* Tell `myke` to use regular expressions rather than McGiffins.
+* Tell `myke` to use regular expressions rather than McGuffins.
 * put the BSD license all over it.
   
 I'll just steal the text from the web page as a first step:
