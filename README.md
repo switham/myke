@@ -9,6 +9,7 @@ I need to
 I'll just steal the text from the web page as a first step:
 
 ---
+![Myke logo](myke2_thumb.png)
 
 > *"It began with an elaborate idea of a dependency analyzer, boiled down to something much simpler, and turned into `Make` that weekend."*<br>--Stuart Feldman
 
